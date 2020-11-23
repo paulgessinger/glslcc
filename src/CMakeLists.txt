@@ -7,8 +7,9 @@ set(SOURCE_FILES "glslcc.cpp"
                  "sgs-file.cpp")
 				 
 add_executable(glslcc ${SOURCE_FILES})
+target_compile_definitions(glslcc PRIVATE -DGLSLCC_AS_EXECUTABLE)
 
-target_link_libraries(glslcc PRIVATE 
+target_link_libraries(glslcc PRIVATE
         sx
         glslang 
         OGLCompiler 
@@ -21,12 +22,29 @@ target_link_libraries(glslcc PRIVATE
         spirv-cross-hlsl 
         spirv-cross-reflect
         spirv-cross-util 
-        spirv-cross-msl)  
+        spirv-cross-msl)
+
+add_library(glslcclib STATIC ${SOURCE_FILES})
+
+target_link_libraries(glslcclib PRIVATE
+		sx
+		glslang
+		OGLCompiler
+		OSDependent
+		SPIRV
+		SPVRemapper
+		spirv-cross-core
+		spirv-cross-cpp
+		spirv-cross-glsl
+		spirv-cross-hlsl
+		spirv-cross-reflect
+		spirv-cross-util
+		spirv-cross-msl)
 
 if (MSVC)
 	if (ENABLE_D3D11_COMPILER)
-			add_definitions(-DD3D11_COMPILER)    
-			target_link_libraries(glslcc PRIVATE d3dcompiler)    
+		add_definitions(-DD3D11_COMPILER)
+		target_link_libraries(glslcc PRIVATE d3dcompiler)
 	endif()
 elseif (NOT WIN32)
 	
@@ -51,8 +69,12 @@ if (STATIC_LINK)
 	endif()
 endif()	
 
-install(TARGETS glslcc 
+install(TARGETS glslcc
         CONFIGURATIONS Release
         RUNTIME DESTINATION bin)
-		
+
+install(TARGETS glslcclib
+		CONFIGURATIONS Release
+		RUNTIME DESTINATION lib)
+
 		

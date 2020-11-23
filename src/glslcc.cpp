@@ -32,6 +32,8 @@
 //
 #define _ALLOW_KEYWORD_MACROS
 
+#include "glslcc.hpp"
+
 #include "sx/allocator.h"
 #include "sx/array.h"
 #include "sx/cmdline.h"
@@ -43,6 +45,7 @@
 #include <stdlib.h>
 
 #include <string>
+#include <memory>
 
 #include "SPIRV/GlslangToSpv.h"
 #include "SPIRV/SpvTools.h"
@@ -79,24 +82,6 @@
 static const sx_alloc* g_alloc = sx_alloc_malloc();
 static sgs_file* g_sgs = nullptr;
 
-struct p_define {
-    char* def;
-    char* val;
-};
-
-enum shader_lang {
-    SHADER_LANG_GLES = 0,
-    SHADER_LANG_HLSL,
-    SHADER_LANG_MSL,
-    SHADER_LANG_GLSL,
-    SHADER_LANG_COUNT
-};
-
-enum output_error_format {
-    OUTPUT_ERRORFORMAT_GLSLANG = 0,
-    OUTPUT_ERRORFORMAT_MSVC,
-    OUTPUT_ERRORFORMAT_GCC
-};
 
 static const char* k_shader_types[SHADER_LANG_COUNT] = {
     "gles",
@@ -274,29 +259,6 @@ private:
     std::vector<std::string> m_systemDirs;
 };
 
-struct cmd_args {
-    const char* vs_filepath;
-    const char* fs_filepath;
-    const char* cs_filepath;
-    const char* out_filepath;
-    shader_lang lang;
-    p_define* defines;
-    Includer includer;
-    int profile_ver;
-    int invert_y;
-    int preprocess;
-    int flatten_ubos;
-    int sgs_file;
-    int reflect;
-    int compile_bin;
-    int debug_bin;
-    int optimize;
-    int silent;
-    int validate;
-    output_error_format err_format;
-    const char* cvar;
-    const char* reflect_filepath;
-};
 
 static void print_version()
 {
@@ -476,7 +438,7 @@ static void parse_includes(cmd_args* args, const char* includes)
                 char* inc_str = (char*)sx_malloc(g_alloc, len + 1);
                 sx_assert(inc_str);
                 sx_strncpy(inc_str, len + 1, inc, len);
-                args->includer.addSystemDir(inc_str);
+                args->includer->addSystemDir(inc_str);
                 sx_free(g_alloc, inc_str);
             }
 
@@ -1429,7 +1391,7 @@ static void output_error(const char* err_str, const cmd_args& args, const char* 
     }
 }
 
-static int compile_files(cmd_args& args, const TBuiltInResource& limits_conf)
+int compile_files(cmd_args& args, const TBuiltInResource& limits_conf)
 {
     auto destroy_shaders = [](glslang::TShader**& shaders) {
         for (int i = 0; i < sx_array_count(shaders); i++) {
@@ -1517,7 +1479,7 @@ static int compile_files(cmd_args& args, const TBuiltInResource& limits_conf)
         char cur_file_dir[512];
         sx_os_path_dirname(cur_file_dir, sizeof(cur_file_dir), files[i].filename);
         includer.addSystemDir(cur_file_dir);
-        includer.addIncluder(args.includer);
+        includer.addIncluder(*args.includer);
 
         if (args.preprocess) {
             if (shader->preprocess(&limits_conf, default_version, ENoProfile, false, false, messages, &prep_str, includer)) {
@@ -1598,11 +1560,14 @@ static void detect_input_file(cmd_args* args, const char* file)
     }
 }
 
+#ifdef GLSLCC_AS_EXECUTABLE
 int main(int argc, char* argv[])
 {
     cmd_args args = {};
     args.lang = SHADER_LANG_COUNT;
     args.err_format = SX_PLATFORM_WINDOWS ? OUTPUT_ERRORFORMAT_MSVC : OUTPUT_ERRORFORMAT_GCC;
+
+    args.includer = std::unique_ptr<Includer>(new Includer());
 
     int version = 0;
     int dump_conf = 0;
@@ -1808,3 +1773,4 @@ int main(int argc, char* argv[])
     cleanup_args(&args);
     return r;
 }
+#endif
